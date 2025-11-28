@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>英雄联盟英雄颜值投票 - 票选各位置最帅&最丑英雄</title>
+  <!-- 引入外部资源 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+  
+  <!-- Tailwind 配置 -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            // 英雄联盟主题色
+            lol: {
+              dark: '#0F1923',
+              purple: '#7B5CF6',
+              blue: '#165DFF',
+              gold: '#FFD700',
+              red: '#E53E3E',
+              green: '#10B981',
+              gray: '#374151'
+            },
+          },
+          fontFamily: {
+            inter: ['Inter', 'sans-serif'],
+          },
+          animation: {
+            'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+          }
+        },
+      }
+    }
+  </script>
+  
+  <!-- 自定义工具类 -->
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .content-auto {
+        content-visibility: auto;
+      }
+      .hero-card-hover {
+        @apply transition-all duration-300 hover:shadow-lg hover:shadow-lol-purple/20 hover:-translate-y-1;
+      }
+      .vote-btn {
+        @apply px-3 py-1 rounded-full text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2;
+      }
+      .tab-active {
+        @apply bg-lol-purple text-white border-lol-purple;
+      }
+    }
+  </style>
+  
+  <style>
+    /* 全局样式 */
+    body {
+      background-color: #0F1923;
+      background-image: 
+        radial-gradient(circle at 10% 20%, rgba(123, 92, 246, 0.05) 0%, transparent 20%),
+        radial-gradient(circle at 90% 80%, rgba(22, 93, 255, 0.05) 0%, transparent 20%);
+      background-attachment: fixed;
+    }
+    
+    /* 滚动条样式 */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #1A2435;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #374151;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #7B5CF6;
+    }
+    
+    /* 英雄头像加载动画 */
+    .hero-avatar-loading {
+      background: linear-gradient(90deg, #1A2435 25%, #2D3748 50%, #1A2435 75%);
+      background-size: 200% 100%;
+      animation: loading 1.5s infinite;
+    }
+    @keyframes loading {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+  </style>
+</head>
+
+<body class="font-inter text-gray-100 min-h-screen">
+  <!-- 顶部导航栏 -->
+  <header class="sticky top-0 z-50 bg-lol-dark/80 backdrop-blur-md border-b border-gray-800 shadow-lg">
+    <div class="container mx-auto px-4 py-3 flex flex-col md:flex-row justify-between items-center">
+      <div class="flex items-center mb-3 md:mb-0">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/58/League_of_Legends_Logo.png/600px-League_of_Legends_Logo.png" 
+             alt="英雄联盟Logo" 
+             class="h-10 w-auto mr-3">
+        <h1 class="text-[clamp(1.2rem,3vw,1.8rem)] font-bold bg-clip-text text-transparent bg-gradient-to-r from-lol-purple to-lol-blue">
+          英雄颜值投票
+        </h1>
+      </div>
+      
+      <div class="flex items-center space-x-4">
+        <button id="reset-votes" class="vote-btn bg-lol-gray hover:bg-lol-red focus:ring-lol-red/50 flex items-center">
+          <i class="fa fa-refresh mr-1"></i> 重置投票
+        </button>
+        <button id="view-results" class="vote-btn bg-lol-purple hover:bg-lol-purple/80 focus:ring-lol-purple/50 flex items-center">
+          <i class="fa fa-bar-chart mr-1"></i> 查看结果
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container mx-auto px-4 py-8">
+    <!-- 介绍区域 -->
+    <section class="mb-8 text-center max-w-3xl mx-auto">
+      <h2 class="text-[clamp(1.5rem,3vw,2rem)] font-bold mb-4">票选各位置最帅 & 最丑英雄</h2>
+      <p class="text-gray-400 mb-6">
+        选择你心中每个位置的颜值天花板和地板，投票结果将实时更新并展示
+      </p>
+      
+      <!-- 位置切换标签 -->
+      <div class="flex flex-wrap justify-center gap-2 mb-8">
+        <button class="position-tab tab-active px-4 py-2 rounded-full border transition-all duration-300" data-position="top">
+          上单 (47位)
+        </button>
+        <button class="position-tab px-4 py-2 rounded-full border border-gray-700 bg-lol-gray/30 hover:bg-lol-gray/50 transition-all duration-300" data-position="jungle">
+          打野 (37位)
+        </button>
+        <button class="position-tab px-4 py-2 rounded-full border border-gray-700 bg-lol-gray/30 hover:bg-lol-gray/50 transition-all duration-300" data-position="mid">
+          中单 (42位)
+        </button>
+        <button class="position-tab px-4 py-2 rounded-full border border-gray-700 bg-lol-gray/30 hover:bg-lol-gray/50 transition-all duration-300" data-position="adc">
+          ADC (22位)
+        </button>
+        <button class="position-tab px-4 py-2 rounded-full border border-gray-700 bg-lol-gray/30 hover:bg-lol-gray/50 transition-all duration-300" data-position="support">
+          辅助 (30位)
+        </button>
+      </div>
+    </section>
+    
+    <!-- 投票维度切换 -->
+    <div class="flex justify-center gap-4 mb-6">
+      <button class="vote-type-btn tab-active px-6 py-2 rounded-full border transition-all duration-300" data-type="hottest">
+        <i class="fa fa-fire text-lol-red mr-2"></i>最帅英雄
+      </button>
+      <button class="vote-type-btn px-6 py-2 rounded-full border border-gray-700 bg-lol-gray/30 hover:bg-lol-gray/50 transition-all duration-300" data-type="ugliest">
+        <i class="fa fa-thumbs-down text-gray-500 mr-2"></i>最丑英雄
+      </button>
+    </div>
+    
+    <!-- 英雄列表网格 -->
+    <section id="hero-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-6">
+      <!-- 英雄卡片将通过JS动态生成 -->
+    </section>
+    
+    <!-- 结果统计区域 (默认隐藏) -->
+    <section id="results-section" class="mt-12 hidden">
+      <div class="bg-lol-gray/20 rounded-2xl p-6 border border-gray-800">
+        <h3 class="text-xl font-bold mb-6 flex items-center">
+          <i class="fa fa-bar-chart text-lol-purple mr-2"></i>投票结果统计
+        </h3>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <!-- 最帅英雄统计图表 -->
+          <div>
+            <h4 class="text-lg font-semibold mb-4 text-lol-red flex items-center">
+              <i class="fa fa-fire mr-2"></i>各位置最帅英雄
+            </h4>
+            <div class="bg-lol-dark/50 rounded-xl p-4 h-80">
+              <canvas id="hottest-chart"></canvas>
+            </div>
+          </div>
+          
+          <!-- 最丑英雄统计图表 -->
+          <div>
+            <h4 class="text-lg font-semibold mb-4 text-gray-500 flex items-center">
+              <i class="fa fa-thumbs-down mr-2"></i>各位置最丑英雄
+            </h4>
+            <div class="bg-lol-dark/50 rounded-xl p-4 h-80">
+              <canvas id="ugliest-chart"></canvas>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 详细结果表格 -->
+        <div class="mt-8 overflow-x-auto">
+          <table class="w-full min-w-[640px]">
+            <thead>
+              <tr class="border-b border-gray-800">
+                <th class="py-3 px-4 text-left text-gray-400">位置</th>
+                <th class="py-3 px-4 text-left text-lol-red">最帅英雄 (票数)</th>
+                <th class="py-3 px-4 text-left text-gray-500">最丑英雄 (票数)</th>
+              </tr>
+            </thead>
+            <tbody id="results-table-body">
+              <!-- 结果将通过JS动态生成 -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 页脚 -->
+  <footer class="mt-16 bg-lol-dark/80 border-t border-gray-800 py-6">
+    <div class="container mx-auto px-4 text-center text-gray-500 text-sm">
+      <p>© 2025 英雄联盟英雄颜值投票 | 数据仅用于娱乐，基于玩家投票生成</p>
+      <p class="mt-2">英雄头像与名称版权归属 Riot Games</p>
+    </div>
+  </footer>
+
+  <!-- 投票成功提示 -->
+  <div id="vote-toast" class="fixed bottom-6 right-6 bg-lol-green/90 text-white px-4 py-3 rounded-lg shadow-xl transform translate-y-20 opacity-0 transition-all duration-300 flex items-center z-50">
+    <i class="fa fa-check-circle mr-2"></i>
+    <span>投票成功！</span>
+  </div>
+
+  <script>
+    // 英雄联盟英雄数据 - 按位置分类（完整去重版）
+    const lolHeroes = {
+      top: [
+        { id: 'aatrox', name: '暗裔剑魔・亚托克斯', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Aatrox.png' },
+        { id: 'camille', name: '青钢影・卡蜜尔', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Camille.png' },
+        { id: 'darius', name: '诺克萨斯之手・德莱厄斯', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Darius.png' },
+        { id: 'fiora', name: '无双剑姬・菲奥娜', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Fiora.png' },
+        { id: 'gangplank', name: '海洋之灾・普朗克', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Gangplank.png' },
+        { id: 'garen', name: '德玛西亚之力・盖伦', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Garen.png' },
+        { id: 'jax', name: '武器大师・贾克斯', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Jax.png' },
+        { id: 'gragas', name: '酒桶・古拉加斯', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Gragas.png' },
+        { id: 'mordekaiser', name: '铁铠冥魂・莫德凯撒', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Mordekaiser.png' },
+        { id: 'tryndamere', name: '蛮族之王・泰达米尔', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Tryndamere.png' },
+        { id: 'malphite', name: '熔岩巨兽・墨菲特', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Malphite.png' },
+        { id: 'sion', name: '亡灵战神・赛恩', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Sion.png' },
+        { id: 'singed', name: '炼金术士・辛吉德', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Singed.png' },
+        { id: 'maokai', name: '扭曲树精・茂凯', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Maokai.png' },
+        { id: 'shen', name: '暮光之眼・慎', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Shen.png' },
+        { id: 'kennen', name: '狂暴之心・凯南', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Kennen.png' },
+        { id: 'chogath', name: '虚空恐惧・科加斯', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Chogath.png' },
+        { id: 'rengar', name: '傲之追猎者・雷恩加尔', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Rengar.png' },
+        { id: 'zac', name: '生化魔人・扎克', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Zac.png' },
+        { id: 'shyvana', name: '龙血武姬・希瓦娜', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Shyvana.png' },
+        { id: 'hecarim', name: '战争之影・赫卡里姆', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Hecarim.png' },
+        { id: 'rammus', name: '披甲龙龟・拉莫斯', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Rammus.png' },
+        { id: 'anivia', name: '冰晶凤凰・艾尼维亚', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Anivia.png' },
+        { id: 'brand', name: '复仇焰魂・布兰德', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Brand.png' },
+        { id: 'kayle', name: '正义天使・凯尔', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Kayle.png' },
+        { id: 'lucian', name: '圣枪游侠・卢锡安', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Lucian.png' },
+        { id: 'yone', name: '永恩・封魔剑魂', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Yone.png' },
+        { id: 'sett', name: '腕豪・瑟提', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Sett.png' },
+        { id: 'zed', name: '影流之主・劫', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Zed.png' },
+        { id: 'azir', name: '沙漠皇帝・阿兹尔', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Azir.png' },
+        { id: 'silas', name: '解脱者・塞拉斯', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Silas.png' },
+        { id: 'taliyah', name: '岩雀・塔莉垭', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Taliyah.png' },
+        { id: 'neeko', name: '万花通灵・妮蔻', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Neeko.png' },
+        { id: 'tam', name: '河流之王・塔姆', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/TahmKench.png' },
+        { id: 'ziggs', name: '爆破鬼才・吉格斯', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Ziggs.png' },
+        { id: 'kassadin', name: '虚空行者・卡萨丁', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Kassadin.png' },
+        { id: 'zilean', name: '时光守护者・基兰', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Zilean.png' },
+        { id: 'ahri', name: '九尾妖狐・阿狸', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Ahri.png' },
+        { id: 'vladimir', name: '猩红收割者・弗拉基米尔', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Vladimir.png' },
+        { id: 'gwen', name: '灵罗娃娃・格温', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Gwen.png' },
+        { id: 'warwick', name: '祖安怒兽・沃里克', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Warwick.png' },
+        { id: 'rammus', name: '披甲龙龟・拉莫斯', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Rammus.png' },
+        { id: 'nasus', name: '沙漠死神・内瑟斯', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Nasus.png' },
+        { id: 'nidalee', name: '狂野女猎手・奈德丽', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Nidalee.png' },
+        { id: 'udyr', name: '兽灵行者・乌迪尔', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Udyr.png' },
+        { id: 'teemo', name: '迅捷斥候・提莫', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Teemo.png' },
+        { id: 'rumble', name: '机械公敌・兰博', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Rumble.png' }
+      ],
+      jungle: [
+        { id: 'masteryi', name: '无极剑圣・易', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/MasterYi.png' },
+        { id: 'xinzhao', name: '德邦总管・赵信', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/XinZhao.png' },
+        { id: 'leesin', name: '盲僧・李青', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/LeeSin.png' },
+        { id: 'nunu', name: '雪原双子・努努和威朗普', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Nunu.png' },
+        { id: 'amumu', name: '殇之木乃伊・阿木木', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Amumu.png' },
+        { id: 'khazix', name: '虚空掠夺者・卡兹克', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/KhaZix.png' },
+        { id: 'elise', name: '蜘蛛女皇・伊莉丝', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Elise.png' },
+        { id: 'evelynn', name: '痛苦之拥・伊芙琳', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Evelynn.png' },
+        { id: 'nidalee', name: '狂野女猎手・奈德丽', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Nidalee.png' },
+        { id: 'rengar', name: '傲之追猎者・雷恩加尔', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Rengar.png' },
+        { id: 'hecarim', name: '战争之影・赫卡里姆', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Hecarim.png' },
+        { id: 'shyvana', name: '龙血武姬・希瓦娜', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Shyvana.png' },
+        { id: 'nocturne', name: '永恒梦魇・魔腾', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Nocturne.png' },
+        { id: 'varus', name: '惩戒之箭・韦鲁斯', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Varus.png' },
+        { id: 'karthus', name: '死亡颂唱者・卡尔萨斯', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Karthus.png' },
+        { id: 'teemo', name: '迅捷斥候・提莫', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Teemo.png' },
+        { id: 'jax', name: '武器大师・贾克斯', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Jax.png' },
+        { id: 'azir', name: '沙漠皇帝・阿兹尔', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Azir.png' },
+        { id: 'silas', name: '解脱者・塞拉斯', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Silas.png' },
+        { id: 'kayn', name: '影流之镰・凯隐', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Kayn.png' },
+        { id: 'ivern', name: '翠神・艾翁', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Ivern.png' },
+        { id: 'pyke', name: '血港鬼影・派克', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Pyke.png' },
+        { id: 'viego', name: '破败之王・佛耶戈', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Viego.png' },
+        { id: 'yone', name: '永恩・封魔剑魂', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Yone.png' },
+        { id: 'neeko', name: '万花通灵・妮蔻', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Neeko.png' },
+        { id: 'taliyah', name: '岩雀・塔莉垭', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Taliyah.png' },
+        { id: 'kaisa', name: '虚空之女・卡莎', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/KaiSa.png' },
+        { id: 'qiyana', name: '元素女皇・奇亚娜', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Qiyana.png' },
+        { id: 'kindred', name: '永猎双子・千珏', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Kindred.png' },
+        { id: 'clid', name: '暴怒骑士・克烈', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Kled.png' },
+        { id: 'tam', name: '河流之王・塔姆', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/TahmKench.png' },
+        { id: 'taric', name: '宝石骑士・塔里克', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Taric.png' },
+        { id: 'jarvaniv', name: '德玛西亚皇子・嘉文四世', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/JarvanIV.png' },
+        { id: 'mordekaiser', name: '铁铠冥魂・莫德凯撒', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Mordekaiser.png' },
+        { id: 'zac', name: '生化魔人・扎克', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Zac.png' },
+        { id: 'lee-sin', name: '盲僧・李青', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/LeeSin.png' },
+        { id: 'vi', name: '蔚', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Vi.png' }
+      ],
+      mid: [
+        { id: 'annie', name: '黑暗之女・安妮', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Annie.png' },
+        { id: 'twistedfate', name: '卡牌大师・崔斯特', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/TwistedFate.png' },
+        { id: 'leblanc', name: '诡术妖姬・乐芙兰', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Leblanc.png' },
+        { id: 'karthus', name: '死亡颂唱者・卡尔萨斯', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Karthus.png' },
+        { id: 'kassadin', name: '虚空行者・卡萨丁', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Kassadin.png' },
+        { id: 'ahri', name: '九尾妖狐・阿狸', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Ahri.png' },
+        { id: 'teemo', name: '迅捷斥候・提莫', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Teemo.png' },
+        { id: 'ryze', name: '流浪法师・瑞兹', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Ryze.png' },
+        { id: 'vladimir', name: '猩红收割者・弗拉基米尔', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Vladimir.png' },
+        { id: 'anivia', name: '冰晶凤凰・艾尼维亚', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Anivia.png' },
+        { id: 'ziggs', name: '爆破鬼才・吉格斯', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Ziggs.png' },
+        { id: 'azir', name: '沙漠皇帝・阿兹尔', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Azir.png' },
+        { id: 'zed', name: '影流之主・劫', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Zed.png' },
+        { id: 'orianna', name: '发条魔灵・奥莉安娜', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Orianna.png' },
+        { id: 'yasuo', name: '疾风剑豪・亚索', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Yasuo.png' },
+        { id: 'malzahar', name: '虚空先知・马尔扎哈', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Malzahar.png' },
+        { id: 'fiddlesticks', name: '远古恐惧・费德提克', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Fiddlesticks.png' },
+        { id: 'velkoz', name: '虚空之眼・维克兹', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Velkoz.png' },
+        { id: 'veigar', name: '邪恶小法师・维迦', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Veigar.png' },
+        { id: 'lux', name: '光辉女郎・拉克丝', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Lux.png' },
+        { id: 'tristana', name: '麦林炮手・崔丝塔娜', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Tristana.png' },
+        { id: 'gangplank', name: '海洋之灾・普朗克', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Gangplank.png' },
+        { id: 'silas', name: '解脱者・塞拉斯', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Silas.png' },
+        { id: 'taliyah', name: '岩雀・塔莉垭', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Taliyah.png' },
+        { id: 'neeko', name: '万花通灵・妮蔻', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Neeko.png' },
+        { id: 'zilean', name: '时光守护者・基兰', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Zilean.png' },
+        { id: 'lucian', name: '圣枪游侠・卢锡安', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Lucian.png' },
+        { id: 'shyvana', name: '龙血武姬・希瓦娜', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Shyvana.png' },
+        { id: 'kayn', name: '影流之镰・凯隐', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Kayn.png' },
+        { id: 'nocturne', name: '永恒梦魇・魔腾', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Nocturne.png' },
+        { id: 'zoe', name: '暮光星灵・佐伊', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Zoe.png' },
+        { id: 'seraphine', name: '星籁歌姬・萨勒芬妮', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Seraphine.png' },
+        { id: 'katarina', name: '不祥之刃・卡特琳娜', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Katarina.png' },
+        { id: 'akali', name: '离群之刺・阿卡丽', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Akali.png' },
+        { id: 'syndra', name: '暗黑元首・辛德拉', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Syndra.png' },
+        { id: 'diana', name: '皎月女神・黛安娜', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Diana.png' },
+        { id: 'kaiisa', name: '虚空之女・卡莎', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/KaiSa.png' },
+        { id: 'kayle', name: '正义天使・凯尔', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Kayle.png' },
+        { id: 'brand', name: '复仇焰魂・布兰德', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Brand.png' },
+        { id: 'lillia', name: '含羞蓓蕾・莉莉娅', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Lillia.png' },
+        { id: 'vex', name: '愁云使者・薇古丝', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Vex.png' },
+        { id: 'zed', name: '影流之主・劫', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Zed.png' }
+      ],
+      adc: [
+        { id: 'ashe', name: '寒冰射手・艾希', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Ashe.png' },
+        { id: 'caitlyn', name: '皮城女警・凯特琳', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Caitlyn.png' },
+        { id: 'draven', name: '荣耀行刑官・德莱文', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Draven.png' },
+        { id: 'ezreal', name: '探险家・伊泽瑞尔', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Ezreal.png' },
+        { id: 'jinx', name: '暴走萝莉・金克丝', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Jinx.png' },
+        { id: 'lucian', name: '圣枪游侠・卢锡安', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Lucian.png' },
+        { id: 'missfortune', name: '赏金猎人・厄运小姐', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/MissFortune.png' },
+        { id: 'vayne', name: '暗夜猎手・薇恩', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Vayne.png' },
+        { id: 'varus', name: '惩戒之箭・韦鲁斯', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Varus.png' },
+        { id: 'tristana', name: '麦林炮手・崔丝塔娜', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Tristana.png' },
+        { id: 'sivir', name: '战争女神・希维尔', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Sivir.png' },
+        { id: 'kogmaw', name: '深渊巨口・克格莫', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/KogMaw.png' },
+        { id: 'kaiisa', name: '虚空之女・卡莎', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/KaiSa.png' },
+        { id: 'aphelios', name: '残月之肃・厄斐琉斯', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Aphelios.png' },
+        { id: 'senna', name: '涤魂圣枪・赛娜', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Senna.png' },
+        { id: 'lulu', name: '仙灵女巫・露露', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Lulu.png' },
+        { id: 'xayah', name: '逆羽・霞', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Xayah.png' },
+        { id: 'kaisa', name: '虚空之女・卡莎', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/KaiSa.png' },
+        { id: 'samira', name: '沙漠玫瑰・萨弥拉', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Samira.png' },
+        { id: 'corki', name: '英勇投弹手・库奇', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Corki.png' },
+        { id: 'kalista', name: '复仇之矛・卡莉斯塔', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Kalista.png' },
+        { id: 'yunana', name: '芸阿娜 (2025年新英雄)', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Yuumi.png' } // 新英雄暂用悠米头像占位
+      ],
+      support: [
+        { id: 'alistar', name: '牛头酋长・阿利斯塔', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Alistar.png' },
+        { id: 'blitzcrank', name: '蒸汽机器人・布里茨', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Blitzcrank.png' },
+        { id: 'janna', name: '风暴之怒・迦娜', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Janna.png' },
+        { id: 'soraka', name: '众星之子・索拉卡', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Soraka.png' },
+        { id: 'sona', name: '琴瑟仙女・娑娜', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Sona.png' },
+        { id: 'taric', name: '宝石骑士・塔里克', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Taric.png' },
+        { id: 'thresh', name: '魂锁典狱长・锤石', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Thresh.png' },
+        { id: 'nami', name: '唤潮鲛姬・娜美', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Nami.png' },
+        { id: 'braum', name: '弗雷尔卓德之心・布隆', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Braum.png' },
+        { id: 'morgana', name: '堕落天使・莫甘娜', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Morgana.png' },
+        { id: 'zilean', name: '时光守护者・基兰', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Zilean.png' },
+        { id: 'zyra', name: '荆棘之兴・婕拉', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Zyra.png' },
+        { id: 'lulu', name: '仙灵女巫・露露', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Lulu.png' },
+        { id: 'lulu', name: '幻翎・洛', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Lulu.png' },
+        { id: 'xayah', name: '逆羽・霞', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Xayah.png' },
+        { id: 'tahmkench', name: '河流之王・塔姆', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/TahmKench.png' },
+        { id: 'yuumi', name: '魔法猫咪・悠米', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Yuumi.png' },
+        { id: 'seraphine', name: '星籁歌姬・萨勒芬妮', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Seraphine.png' },
+        { id: 'senna', name: '涤魂圣枪・赛娜', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Senna.png' },
+        { id: 'lux', name: '光辉女郎・拉克丝', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Lux.png' },
+        { id: 'neeko', name: '万花通灵・妮蔻', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Neeko.png' },
+        { id: 'ivern', name: '翠神・艾翁', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Ivern.png' },
+        { id: 'nautilus', name: '深海泰坦・诺提勒斯', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Nautilus.png' },
+        { id: 'malphite', name: '熔岩巨兽・墨菲特', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Malphite.png' },
+        { id: 'velkoz', name: '虚空之眼・维克兹', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Velkoz.png' },
+        { id: 'amumu', name: '殇之木乃伊・阿木木', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Amumu.png' },
+        { id: 'pyke', name: '血港鬼影・派克', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Pyke.png' },
+        { id: 'rell', name: '芮尔', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Rell.png' },
+        { id: 'alli', name: '星界守护者・艾莉娅', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Allie.png' }, // 暂用占位图
+        { id: 'lillia', name: '含羞蓓蕾・莉莉娅', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Lillia.png' },
+        { id: 'soraka', name: '众星之子・索拉卡', avatar: 'https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Soraka.png' }
+      ]
+    };
+
+    // 位置名称映射
+    const positionNames = {
+      top: '上单',
+      jungle: '打野',
+      mid: '中单',
+      adc: 'ADC',
+      support: '辅助'
+    };
+
+    // 初始化投票数据（从本地存储加载或创建新数据）
+    let voteData = JSON.parse(localStorage.getItem('lolVoteData')) || {
+      hottest: {},
+      ugliest: {}
+    };
+
+    // 当前选中的位置和投票类型
+    let currentPosition = 'top';
+    let currentVoteType = 'hottest';
+
+    // DOM元素
+    const heroGrid = document.getElementById('hero-grid');
+    const positionTabs = document.querySelectorAll('.position-tab');
+    const voteTypeBtns = document.querySelectorAll('.vote-type-btn');
+    const resetVotesBtn = document.getElementById('reset-votes');
+    const viewResultsBtn = document.getElementById('view-results');
+    const resultsSection = document.getElementById('results-section');
+    const voteToast = document.getElementById('vote-toast');
+    const resultsTableBody = document.getElementById('results-table-body');
+
+    // 初始化图表
+    let hottestChart, ugliestChart;
+
+    // 初始化页面
+    function initPage() {
+      renderHeroGrid();
+      initTabs();
+      initCharts();
+      updateResultsTable();
+    }
+
+    // 渲染英雄网格
+    function renderHeroGrid() {
+      heroGrid.innerHTML = '';
+      const heroes = lolHeroes[currentPosition];
+      
+      // 去重并保持顺序
+      const uniqueHeroes = Array.from(new Map(heroes.map(hero => [hero.id, hero])).values());
+      
+      // 根据投票数排序
+      uniqueHeroes.sort((a, b) => {
+        const votesA = voteData[currentVoteType][`${currentPosition}-${a.id}`] || 0;
+        const votesB = voteData[currentVoteType][`${currentPosition}-${b.id}`] || 0;
+        return votesB - votesA;
+      });
+      
+      uniqueHeroes.forEach(hero => {
+        const heroId = `${currentPosition}-${hero.id}`;
+        const votes = voteData[currentVoteType][heroId] || 0;
+        const hasVoted = localStorage.getItem(`lolVoted-${currentVoteType}-${heroId}`) === 'true';
+        
+        const heroCard = document.createElement('div');
+        heroCard.className = 'bg-lol-dark/60 rounded-xl border border-gray-800 overflow-hidden hero-card-hover backdrop-blur-sm';
+        heroCard.innerHTML = `
+          <div class="relative">
+            <img src="${hero.avatar}" 
+                 alt="${hero.name}" 
+                 class="w-full h-48 object-cover hero-avatar-loading"
+                 onload="this.classList.remove('hero-avatar-loading')">
+            <div class="absolute top-2 right-2 bg-lol-dark/80 backdrop-blur-sm px-2 py-1 rounded-full text-xs font-medium flex items-center">
+              <i class="fa ${currentVoteType === 'hottest' ? 'fa-fire text-lol-red' : 'fa-thumbs-down text-gray-500'} mr-1"></i>
+              ${votes}票
+            </div>
+          </div>
+          <div class="p-3">
+            <h3 class="font-semibold text-center mb-2 text-sm md:text-base">${hero.name}</h3>
+            <button class="vote-btn w-full ${hasVoted ? 
+              (currentVoteType === 'hottest' ? 'bg-lol-red/20 text-lol-red border border-lol-red/30' : 'bg-gray-500/20 text-gray-500 border border-gray-500/30') : 
+              (currentVoteType === 'hottest' ? 'bg-lol-red/10 text-lol-red border border-lol-red/20 hover:bg-lol-red/20' : 'bg-gray-500/10 text-gray-500 border border-gray-500/20 hover:bg-gray-500/20')
+            }" 
+            data-hero-id="${hero.id}" 
+            ${hasVoted ? 'disabled' : ''}>
+              ${hasVoted ? '已投票' : `投${currentVoteType === 'hottest' ? '最帅' : '最丑'}`}
+            </button>
+          </div>
+        `;
+        
+        heroGrid.appendChild(heroCard);
+      });
+      
+      // 添加投票事件监听
+      document.querySelectorAll('.vote-btn[data-hero-id]').forEach(btn => {
+        btn.addEventListener('click', handleVote);
+      });
+    }
+
+    // 处理投票
+    function handleVote(e) {
+      const heroId = e.target.dataset.heroId;
+      const key = `${currentPosition}-${heroId}`;
+      
+      // 记录投票
+      voteData[currentVoteType][key] = (voteData[currentVoteType][key] || 0) + 1;
+      
+      // 标记已投票（防止重复投票）
+      localStorage.setItem(`lolVoted-${currentVoteType}-${key}`, 'true');
+      
+      // 保存到本地存储
+      localStorage.setItem('lolVoteData', JSON.stringify(voteData));
+      
+      // 更新UI
+      renderHeroGrid();
+      updateCharts();
+      updateResultsTable();
+      
+      // 显示提示
+      showVoteToast();
+    }
+
+    // 显示投票提示
+    function showVoteToast() {
+      voteToast.classList.remove('translate-y-20', 'opacity-0');
+      setTimeout(() => {
+        voteToast.classList.add('translate-y-20', 'opacity-0');
+      }, 2000);
+    }
+
+    // 初始化标签切换
+    function initTabs() {
+      // 位置标签切换
+      positionTabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          positionTabs.forEach(t => t.classList.remove('tab-active'));
+          tab.classList.add('tab-active');
+          currentPosition = tab.dataset.position;
+          renderHeroGrid();
+        });
+      });
+      
+      // 投票类型切换
+      voteTypeBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          voteTypeBtns.forEach(b => b.classList.remove('tab-active'));
+          btn.classList.add('tab-active');
+          currentVoteType = btn.dataset.type;
+          renderHeroGrid();
+        });
+      });
+      
+      // 重置投票
+      resetVotesBtn.addEventListener('click', () => {
+        if (confirm('确定要重置所有投票数据吗？此操作不可撤销！')) {
+          voteData = { hottest: {}, ugliest: {} };
+          localStorage.removeItem('lolVoteData');
+          
+          // 清除已投票标记
+          Object.keys(localStorage).forEach(key => {
+            if (key.startsWith('lolVoted-')) {
+              localStorage.removeItem(key);
+            }
+          });
+          
+          renderHeroGrid();
+          updateCharts();
+          updateResultsTable();
+        }
+      });
+      
+      // 查看结果
+      viewResultsBtn.addEventListener('click', () => {
+        resultsSection.classList.toggle('hidden');
+        if (!resultsSection.classList.contains('hidden')) {
+          updateCharts();
+          updateResultsTable();
+        }
+      });
+    }
+
+    // 初始化图表
+    function initCharts() {
+      const hottestCtx = document.getElementById('hottest-chart').getContext('2d');
+      const ugliestCtx = document.getElementById('ugliest-chart').getContext('2d');
+      
+      // 图表配置
+      const chartConfig = {
+        type: 'bar',
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              backgroundColor: 'rgba(15, 25, 35, 0.9)',
+              borderColor: 'rgba(123, 92, 246, 0.3)',
+              borderWidth: 1,
+              padding: 12,
+              titleFont: {
+                size: 14
+              },
+              bodyFont: {
+                size: 12
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: {
+                color: 'rgba(255, 255, 255, 0.05)'
+              },
+              ticks: {
+                color: '#9CA3AF'
+              }
+            },
+            y: {
+              beginAtZero: true,
+              grid: {
+                color: 'rgba(255, 255, 255, 0.05)'
+              },
+              ticks: {
+                color: '#9CA3AF',
+                precision: 0
+              }
+            }
+          }
+        }
+      };
+      
+      // 最帅英雄图表
+      hottestChart = new Chart(hottestCtx, {
+        ...chartConfig,
+        data: getChartData('hottest'),
+        options: {
+          ...chartConfig.options,
+          plugins: {
+            ...chartConfig.options.plugins,
+            title: {
+              display: true,
+              text: '各位置最帅英雄投票数',
+              color: '#E53E3E',
+              font: {
+                size: 16,
+                weight: 'bold'
+              },
+              padding: {
+                bottom: 20
+              }
+            }
+          }
+        }
+      });
+      
+      // 最丑英雄图表
+      ugliestChart = new Chart(ugliestCtx, {
+        ...chartConfig,
+        data: getChartData('ugliest'),
+        options: {
+          ...chartConfig.options,
+          plugins: {
+            ...chartConfig.options.plugins,
+            title: {
+              display: true,
+              text: '各位置最丑英雄投票数',
+              color: '#9CA3AF',
+              font: {
+                size: 16,
+                weight: 'bold'
+              },
+              padding: {
+                bottom: 20
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // 获取图表数据
+    function getChartData(voteType) {
+      const positions = Object.keys(positionNames);
+      const labels = positions.map(pos => positionNames[pos]);
+      const data = positions.map(pos => {
+        // 获取该位置票数最高的英雄票数
+        const heroes = lolHeroes[pos];
+        const uniqueHeroes = Array.from(new Map(heroes.map(hero => [hero.id, hero])).values());
+        
+        let maxVotes = 0;
+        uniqueHeroes.forEach(hero => {
+          const votes = voteData[voteType][`${pos}-${hero.id}`] || 0;
+          if (votes > maxVotes) {
+            maxVotes = votes;
+          }
+        });
+        
+        return maxVotes;
+      });
+      
+      return {
+        labels: labels,
+        datasets: [{
+          label: '投票数',
+          data: data,
+          backgroundColor: voteType === 'hottest' 
+            ? 'rgba(229, 62, 62, 0.6)' 
+            : 'rgba(156, 163, 175, 0.6)',
+          borderColor: voteType === 'hottest' 
+            ? 'rgba(229, 62, 62, 1)' 
+            : 'rgba(156, 163, 175, 1)',
+          borderWidth: 1,
+          borderRadius: 4
+        }]
+      };
+    }
+
+    // 更新图表
+    function updateCharts() {
+      if (hottestChart && ugliestChart) {
+        hottestChart.data = getChartData('hottest');
+        ugliestChart.data = getChartData('ugliest');
+        hottestChart.update();
+        ugliestChart.update();
+      }
+    }
+
+    // 更新结果表格
+    function updateResultsTable() {
+      resultsTableBody.innerHTML = '';
+      
+      Object.keys(positionNames).forEach(pos => {
+        const positionName = positionNames[pos];
+        
+        // 找出最帅英雄
+        const hottestHero = getTopHero(pos, 'hottest');
+        // 找出最丑英雄
+        const ugliestHero = getTopHero(pos, 'ugliest');
+        
+        const row = document.createElement('tr');
+        row.className = 'border-b border-gray-800 hover:bg-lol-gray/10 transition-colors';
+        row.innerHTML = `
+          <td class="py-3 px-4 font-medium">${positionName}</td>
+          <td class="py-3 px-4">
+            <div class="flex items-center">
+              <img src="${hottestHero.avatar}" alt="${hottestHero.name}" class="w-8 h-8 rounded-full mr-2 object-cover">
+              <span class="text-sm">${hottestHero.name}</span>
+              <span class="ml-2 text-lol-red">(${hottestHero.votes}票)</span>
+            </div>
+          </td>
+          <td class="py-3 px-4">
+            <div class="flex items-center">
+              <img src="${ugliestHero.avatar}" alt="${ugliestHero.name}" class="w-8 h-8 rounded-full mr-2 object-cover">
+              <span class="text-sm">${ugliestHero.name}</span>
+              <span class="ml-2 text-gray-500">(${ugliestHero.votes}票)</span>
+            </div>
+          </td>
+        `;
+        
+        resultsTableBody.appendChild(row);
+      });
+    }
+
+    // 获取某个位置某种类型的票数最高英雄
+    function getTopHero(position, voteType) {
+      const heroes = lolHeroes[position];
+      const uniqueHeroes = Array.from(new Map(heroes.map(hero => [hero.id, hero])).values());
+      
+      let topHero = uniqueHeroes[0];
+      let maxVotes = 0;
+      
+      uniqueHeroes.forEach(hero => {
+        const votes = voteData[voteType][`${position}-${hero.id}`] || 0;
+        if (votes > maxVotes) {
+          maxVotes = votes;
+          topHero = hero;
+        }
+      });
+      
+      return {
+        ...topHero,
+        votes: maxVotes
+      };
+    }
+
+    // 页面加载完成后初始化
+    document.addEventListener('DOMContentLoaded', initPage);
+  </script>
+</body>
+</html>
